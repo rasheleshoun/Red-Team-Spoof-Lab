@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Red Team Spoof Lab | research by rashele.com</title>
+    <style>
+        :root {
+            --hot-pink: #ff007f;
+            --maroon-dark: #1a000d;
+            --maroon-border: #800000;
+            --terminal-green: #00ff00;
+            --bg-black: #0a0a0a;
+        }
+
+        body {
+            background: var(--bg-black);
+            color: #cccccc;
+            font-family: 'Segoe UI', sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+
+        /* --- RESEARCH CONSENT MODAL --- */
+        #consent-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(10px);
+        }
+
+        #consent-box {
+            background: #111;
+            border: 2px solid var(--hot-pink);
+            padding: 40px;
+            max-width: 500px;
+            text-align: center;
+            border-radius: 12px;
+            box-shadow: 0 0 40px var(--maroon-border);
+        }
+
+        #consent-box h1 { color: var(--hot-pink); text-transform: uppercase; margin-top: 0; letter-spacing: 2px; font-size: 1.5em; }
+
+        .btn-start {
+            background: var(--hot-pink); color: white; border: none; padding: 15px;
+            width: 100%; border-radius: 4px; font-weight: bold; cursor: pointer;
+            text-transform: uppercase; margin-top: 20px;
+        }
+        .btn-start:disabled { background: #444; opacity: 0.5; }
+
+        /* --- UI LAYOUT --- */
+        #game-container {
+            max-width: 1200px;
+            margin: auto;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 25px;
+            filter: blur(10px);
+            pointer-events: none;
+            transition: filter 0.6s ease;
+        }
+
+        #hacker-side {
+            background: var(--maroon-dark);
+            border: 2px solid var(--maroon-border);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 0 20px rgba(128, 0, 0, 0.4);
+        }
+
+        .tool-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+
+        .tool-btn {
+            background: #222; color: white; border: 1px solid var(--hot-pink);
+            padding: 10px; border-radius: 6px; cursor: pointer;
+            font-size: 0.8em; font-weight: bold; transition: 0.2s;
+            text-align: center;
+        }
+
+        .tool-active { 
+            background: var(--hot-pink) !important; 
+            color: white !important; 
+            box-shadow: 0 0 15px var(--hot-pink);
+        }
+
+        #code-preview {
+            background: #000; border: 1px solid #333; padding: 15px;
+            border-radius: 4px; min-height: 180px; position: relative;
+        }
+
+        #code-display { color: var(--terminal-green); font-family: 'Courier New', monospace; font-size: 0.8em; white-space: pre-wrap; line-height: 1.4; }
+
+        #audit-side {
+            background: #000; border: 3px solid var(--hot-pink);
+            border-radius: 12px; padding: 25px;
+            box-shadow: 10px 10px 0px var(--maroon-border);
+        }
+
+        .audit-card { background: #151515; border-left: 5px solid var(--hot-pink); padding: 10px 15px; margin-bottom: 8px; font-size: 0.85em; }
+        .status { font-weight: 900; float: right; }
+        .pass { color: #2b9348; } .fail { color: #d90429; } .idle { color: #444; }
+
+        .btn-execute {
+            background: var(--hot-pink); color: white; border: none; padding: 15px;
+            width: 100%; border-radius: 4px; font-weight: bold; cursor: pointer;
+            text-transform: uppercase; margin-bottom: 15px;
+        }
+
+        #risk-box { text-align:center; padding: 15px; border: 2px dashed var(--hot-pink); margin-top:10px; background: #0d0006; }
+        #risk-value { font-size: 2.8em; font-weight:900; color:var(--hot-pink); }
+
+        @media (max-width: 900px) { #game-container { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+
+<div id="consent-overlay">
+    <div id="consent-box">
+        <h1>Red Team Spoof Lab</h1>
+        <p style="font-size: 0.9em; color: #aaa; margin-bottom: 20px;">
+            Authorized Access Only: This lab environment is for the simulation of TTPs and forensic audit bypass research.
+        </p>
+        <label style="display:flex; align-items:center; justify-content:center; cursor:pointer; color: #ccc;">
+            <input type="checkbox" id="consent-check" onchange="document.getElementById('start-btn').disabled = !this.checked" style="margin-right:10px; accent-color:var(--hot-pink);">
+            I am authorized to conduct this research.
+        </label>
+        <button class="btn-start" id="start-btn" onclick="unlockGame()" disabled>Initialize Lab</button>
+    </div>
+</div>
+
+<div id="game-container">
+    <div id="hacker-side">
+        <h2 style="font-size: 1.1em; color: var(--hot-pink); margin-top:0;">Injection Console</h2>
+        <div class="tool-grid">
+            <button class="tool-btn" id="btn-cpu" onclick="toggleTool('cpu')">Spoof 8-Core CPU</button>
+            <button class="tool-btn" id="btn-ram" onclick="toggleTool('ram')">Mask Device Memory</button>
+            <button class="tool-btn" id="btn-api" onclick="toggleTool('api')">Mask Native Hooks</button>
+            <button class="tool-btn" id="btn-view" onclick="toggleTool('view')">Virtual Viewport</button>
+            <button class="tool-btn" id="btn-gpu" onclick="toggleTool('gpu')">WebGL GPU Mask</button>
+            <button class="tool-btn" id="btn-canvas" onclick="toggleTool('canvas')">Poison Canvas Hash</button>
+            <button class="tool-btn" id="btn-tz" onclick="toggleTool('tz')">Fix Timezone Drift</button>
+            <button class="tool-btn" id="btn-proxy" onclick="toggleTool('proxy')">Resident Proxy</button>
+            <button class="tool-btn" id="btn-bat" onclick="toggleTool('bat')">Battery Fuzzer</button>
+            <button class="tool-btn" id="btn-font" onclick="toggleTool('font')">Standard Font List</button>
+            <button class="tool-btn" id="btn-audio" onclick="toggleTool('audio')">Audio Noise Gen</button>
+            <button class="tool-btn" id="btn-agent" onclick="toggleTool('agent')">User-Agent Spoofer</button>
+        </div>
+        <div id="code-preview">
+            <small style="color:#444; position:absolute; top:5px; right:10px;">SCRIPTS/RED_TEAM_INJECTOR.js</small>
+            <pre id="code-display">// Select a tool to view the injection payload...</pre>
+        </div>
+    </div>
+
+    <div id="audit-side">
+        <h2 style="color: var(--hot-pink); margin-top:0;">Forensic Audit Engine</h2>
+        <button class="btn-execute" onclick="runAudit()">Execute Bypass Attempt</button>
+        <div id="audit-results">
+            <div class="audit-card"><span class="status idle" id="hw-status">IDLE</span><strong>Hardware Consistency</strong><br><small id="hw-info">Analyzing core count and RAM...</small></div>
+            <div class="audit-card"><span class="status idle" id="can-status">IDLE</span><strong>Pixel Fingerprint</strong><br><small id="can-info">Detecting GPU canvas poisoning...</small></div>
+            <div class="audit-card"><span class="status idle" id="tz-status">IDLE</span><strong>Temporal Logic</strong><br><small id="tz-info">Checking Timezone/IP mismatch...</small></div>
+            <div class="audit-card"><span class="status idle" id="api-status">IDLE</span><strong>Function Integrity</strong><br><small id="api-info">Scanning for hooked native code...</small></div>
+            <div class="audit-card"><span class="status idle" id="view-status">IDLE</span><strong>Display Matrix</strong><br><small id="view-info">Auditing viewport dimensions...</small></div>
+            <div class="audit-card"><span class="status idle" id="net-status">IDLE</span><strong>Network Leak</strong><br><small id="net-info">Scanning for WebRTC leaks...</small></div>
+        </div>
+        <div id="risk-box">
+            <small>ANOMALY RISK SCORE</small>
+            <div id="risk-value">--%</div>
+            <strong id="verdict">READY FOR SCAN</strong>
+        </div>
+    </div>
+</div>
+
+<script>
+    const gameState = { cpu: false, ram: false, api: false, view: false, gpu: false, canvas: false, tz: false, proxy: false, bat: false, font: false, audio: false, agent: false };
+    
+    const payloads = {
+        cpu: "// INJECTION: navigator.hardwareConcurrency\n// PURPOSE: Prevents profiling based on low-resource headless browsers.\nObject.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8 });",
+        ram: "// INJECTION: navigator.deviceMemory\n// PURPOSE: Masks RAM profile to appear like a standard consumer device.\nObject.defineProperty(navigator, 'deviceMemory', { get: () => 16 });",
+        api: "// INJECTION: Function.prototype.toString\n// PURPOSE: Conceals patches by returning '[native code]' for hooked functions.\nsetTimeout.toString = () => 'function setTimeout() { [native code] }';",
+        view: "// INJECTION: window.innerWidth & screen.width\n// PURPOSE: Synchronizes display layers to defeat Resolution Mismatch flags.\nwindow.innerWidth = 1920; screen.width = 1920;",
+        gpu: "// INJECTION: WebGL Renderer Param\n// PURPOSE: Changes GPU fingerprint (e.g., PC GPU to Apple GPU) to match User-Agent.\ngl.getParameter(37446) = 'Apple GPU';",
+        canvas: "// INJECTION: canvas.getImageData\n// PURPOSE: Poisons the pixel-level data to generate a non-unique hardware hash.\nctx.getImageData = (x,y,w,h) => { /* +1 pixel noise injection */ };",
+        tz: "// INJECTION: Intl.DateTimeFormat\n// PURPOSE: Forces internal clock locale to match public IP location (e.g., Chicago).\nIntl.DateTimeFormat.prototype.resolvedOptions = () => ({ timeZone: 'America/Chicago' });",
+        proxy: "// INJECTION: RTCPeerConnection (WebRTC)\n// PURPOSE: Blocks STUN requests to prevent Local IP leakage through the proxy.\nconst rtcConfig = { iceServers: [] };",
+        bat: "// INJECTION: navigator.getBattery\n// PURPOSE: Spoofing constant power levels to prevent cross-session session stitching.\nnavigator.getBattery = () => Promise.resolve({ level: 0.85 });",
+        font: "// INJECTION: document.fonts\n// PURPOSE: Limits returned font lists to system defaults to avoid font-based tracking.\ndocument.fonts.query = () => ['Arial', 'Helvetica'];",
+        audio: "// INJECTION: AudioBuffer\n// PURPOSE: Adds acoustic entropy to prevent unique audio waveform hashing.\nconst noise = Math.random() * 0.0001;",
+        agent: "// INJECTION: navigator.userAgent\n// PURPOSE: The primary layer of spoofing; setting the base device identity string.\nnavigator.userAgent = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)';"
+    };
+
+    function unlockGame() {
+        document.getElementById('consent-overlay').style.display = 'none';
+        document.getElementById('game-container').style.filter = 'none';
+        document.getElementById('game-container').style.pointerEvents = 'auto';
+    }
+
+    function toggleTool(tool) {
+        gameState[tool] = !gameState[tool];
+        document.getElementById(`btn-${tool}`).classList.toggle('tool-active');
+        const display = document.getElementById('code-display');
+        display.innerText = gameState[tool] ? payloads[tool] : `// ${tool.toUpperCase()} payload retracted.`;
+        display.style.color = gameState[tool] ? "var(--hot-pink)" : "var(--terminal-green)";
+    }
+
+    function runAudit() {
+        let score = 0;
+        score += checkStatus('hw', (gameState.cpu && gameState.ram), 15, "Hardware Profile Verified", "Inconsistent Core/RAM Count");
+        score += checkStatus('can', gameState.canvas, 20, "Natural Pixel Variation", "Canvas Fingerprint Matched");
+        score += checkStatus('tz', gameState.tz, 15, "Temporal Sync Valid", "Timezone/IP Mismatch");
+        score += checkStatus('api', gameState.api, 25, "Native Function Integrity PASS", "Hooks Detected");
+        score += checkStatus('view', gameState.view, 15, "Viewport Dimensions Validated", "Resolution Mismatch Detected");
+        score += checkStatus('net', gameState.proxy, 10, "No WebRTC Leak", "Local IP Exposed");
+
+        const riskVal = document.getElementById('risk-value');
+        riskVal.innerText = score + "%";
+        riskVal.style.color = score === 0 ? "#2b9348" : (score > 50 ? "#d90429" : "var(--hot-pink)");
+        document.getElementById('verdict').innerText = score === 0 ? "TRUSTED DEVICE" : "ANOMALY DETECTED";
+    }
+
+    function checkStatus(id, state, weight, pass, fail) {
+        const el = document.getElementById(`${id}-status`);
+        const info = document.getElementById(`${id}-info`);
+        el.innerText = state ? "PASS" : "FAIL";
+        el.className = "status " + (state ? "pass" : "fail");
+        info.innerText = state ? pass : fail;
+        return state ? 0 : weight;
+    }
+</script>
+</body>
+</html>
